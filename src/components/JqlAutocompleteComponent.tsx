@@ -7,9 +7,8 @@ import {
   CommandItem,
   CommandList
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import JqlAutocompleteProvider from './JqlAutocompleteProvider';
 import { Input } from '@/components/ui/input';
+import JqlAutocompleteProvider from './JqlAutocompleteProvider';
 
 interface JqlAutocompleteComponentProps {
   value: string;
@@ -39,6 +38,8 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
   const [cursorPosition, setCursorPosition] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSelecting, setIsSelecting] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const commandRef = useRef<HTMLDivElement>(null);
   
   // Function to detect what part of the JQL query we're currently editing
   const detectQueryContext = (query: string, position: number) => {
@@ -90,6 +91,7 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
       setSuggestions(results);
       if (results.length > 0 && !isSelecting) {
         setOpen(true);
+        setActiveIndex(0); // Reset active index when new suggestions load
       }
     } catch (error) {
       console.error('Error loading suggestions:', error);
@@ -172,10 +174,26 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
       return;
     }
     
-    // Tab, Enter or Arrow down should focus the first suggestion if dropdown is open
-    if ((e.key === 'Tab' || e.key === 'Enter' || e.key === 'ArrowDown') && open && suggestions.length > 0) {
-      // Let the Command component handle these keys
-      return;
+    // Handle dropdown navigation with arrow keys
+    if (open && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault(); // Prevent cursor movement in input
+        setActiveIndex(prev => (prev + 1) % suggestions.length);
+        return;
+      }
+      
+      if (e.key === 'ArrowUp') {
+        e.preventDefault(); // Prevent cursor movement in input
+        setActiveIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+        return;
+      }
+      
+      // Select active item with Enter
+      if (e.key === 'Enter' && activeIndex >= 0 && activeIndex < suggestions.length) {
+        e.preventDefault(); // Prevent form submission
+        handleSelect(suggestions[activeIndex]);
+        return;
+      }
     }
   };
 
@@ -224,15 +242,15 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
       
       {open && suggestions.length > 0 && (
         <div className="absolute left-0 right-0 z-50">
-          <Command className="rounded-lg border shadow-md bg-white overflow-hidden">
+          <Command ref={commandRef} className="rounded-lg border shadow-md bg-white overflow-hidden">
             <CommandList className="max-h-[200px] overflow-y-auto py-2">
               <CommandGroup heading={suggestType === 'field' ? 'Fields' : suggestType === 'operator' ? 'Operators' : 'Values'}>
-                {suggestions.map((suggestion) => (
+                {suggestions.map((suggestion, index) => (
                   <CommandItem
                     key={suggestion.id}
                     value={suggestion.id}
                     onSelect={() => handleSelect(suggestion)}
-                    className="command-item cursor-pointer hover:bg-blue-50 px-3 py-2"
+                    className={`command-item cursor-pointer px-3 py-2 ${index === activeIndex ? 'bg-blue-50 text-blue-700' : 'hover:bg-blue-50'}`}
                   >
                     <span className="font-medium">{suggestion.name}</span>
                     {suggestion.description && (
