@@ -4,7 +4,6 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList
 } from "@/components/ui/command";
@@ -39,9 +38,12 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSelecting, setIsSelecting] = useState(false);
   
   // Function to detect what part of the JQL query we're currently editing
   const detectQueryContext = (query: string, position: number) => {
+    if (isSelecting) return null; // Don't detect context while selection is in progress
+    
     console.log('Detecting query context at position:', position);
     
     // Get the substring up to the cursor position
@@ -86,7 +88,7 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
       const results = await autocompleteProvider.getSuggestions(props);
       console.log('Suggestions loaded:', results);
       setSuggestions(results);
-      if (results.length > 0) {
+      if (results.length > 0 && !isSelecting) {
         setOpen(true);
       }
     } catch (error) {
@@ -98,20 +100,23 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
   useEffect(() => {
     if (inputRef.current) {
       const handleSelectionChange = () => {
+        if (isSelecting) return;
+        
         const position = inputRef.current?.selectionStart || 0;
         setCursorPosition(position);
         detectQueryContext(value, position);
       };
       
-      inputRef.current.addEventListener('click', handleSelectionChange);
-      inputRef.current.addEventListener('keyup', handleSelectionChange);
+      const element = inputRef.current;
+      element.addEventListener('click', handleSelectionChange);
+      element.addEventListener('keyup', handleSelectionChange);
       
       return () => {
-        inputRef.current?.removeEventListener('click', handleSelectionChange);
-        inputRef.current?.removeEventListener('keyup', handleSelectionChange);
+        element.removeEventListener('click', handleSelectionChange);
+        element.removeEventListener('keyup', handleSelectionChange);
       };
     }
-  }, [value]);
+  }, [value, isSelecting]);
 
   // Load suggestions when context changes
   useEffect(() => {
@@ -123,55 +128,84 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
   // Handle selecting a suggestion
   const handleSelect = (selected: Suggestion) => {
     console.log('Selected suggestion:', selected);
+    setIsSelecting(true);
     
-    // Split the query into parts
-    const beforeCursor = value.substring(0, cursorPosition);
-    const afterCursor = value.substring(cursorPosition);
-    
-    // Get the last word before cursor
-    const lastWordMatch = beforeCursor.match(/(\S+)$/);
-    const lastWord = lastWordMatch ? lastWordMatch[1] : '';
-    const beforeLastWord = lastWordMatch ? beforeCursor.substring(0, beforeCursor.length - lastWord.length) : beforeCursor;
-    
-    // Create the new query by replacing the current word with the selected suggestion
-    const newValue = beforeLastWord + selected.name + ' ' + afterCursor;
-    
-    onChange(newValue);
-    setOpen(false);
-    
-    // Set timeout to focus back on the input and put cursor at end of selected suggestion
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        const newCursorPos = beforeLastWord.length + selected.name.length + 1;
-        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
-      }
-    }, 10);
+    try {
+      // Split the query into parts
+      const beforeCursor = value.substring(0, cursorPosition);
+      const afterCursor = value.substring(cursorPosition);
+      
+      // Get the last word before cursor
+      const lastWordMatch = beforeCursor.match(/(\S+)$/);
+      const lastWord = lastWordMatch ? lastWordMatch[1] : '';
+      const beforeLastWord = lastWordMatch ? beforeCursor.substring(0, beforeCursor.length - lastWord.length) : beforeCursor;
+      
+      // Create the new query by replacing the current word with the selected suggestion
+      const newValue = beforeLastWord + selected.name + ' ' + afterCursor;
+      
+      onChange(newValue);
+      setOpen(false);
+      
+      // Calculate new cursor position (at the end of the inserted text plus space)
+      const newCursorPos = beforeLastWord.length + selected.name.length + 1;
+      
+      // Set timeout to focus back on the input and put cursor at end of selected suggestion
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+          inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+        // Allow detection again after selection is complete
+        setIsSelecting(false);
+      }, 50);
+    } catch (error) {
+      console.error('Error handling selection:', error);
+      setIsSelecting(false);
+    }
   };
 
   // Handle key navigation and escape to close dropdown
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Allow regular typing to continue
+    // Close dropdown on Escape
     if (e.key === 'Escape') {
       setOpen(false);
+      return;
     }
     
-    // Don't interfere with normal typing
-    e.stopPropagation();
+    // Tab, Enter or Arrow down should focus the first suggestion if dropdown is open
+    if ((e.key === 'Tab' || e.key === 'Enter' || e.key === 'ArrowDown') && open && suggestions.length > 0) {
+      // Let the Command component handle these keys
+      return;
+    }
   };
 
   // Handle input changes without interfering with dropdown
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isSelecting) return;
+    
     const newValue = e.target.value;
     onChange(newValue);
     
     // Update cursor position
-    setTimeout(() => {
-      if (inputRef.current) {
-        setCursorPosition(inputRef.current.selectionStart || 0);
-        detectQueryContext(newValue, inputRef.current.selectionStart || 0);
-      }
-    }, 0);
+    const newPosition = e.target.selectionStart || 0;
+    setCursorPosition(newPosition);
+    detectQueryContext(newValue, newPosition);
+  };
+
+  const handleFocus = () => {
+    // Only show suggestions if we have a query context
+    detectQueryContext(value, inputRef.current?.selectionStart || 0);
+  };
+
+  // Close dropdown when clicking outside
+  const handleBlur = (e: React.FocusEvent) => {
+    // Don't close if clicking on a suggestion
+    if (e.relatedTarget && e.relatedTarget.closest('.command-item')) {
+      return;
+    }
+    
+    // Give a small delay to allow selection to complete
+    setTimeout(() => setOpen(false), 150);
   };
 
   return (
@@ -181,30 +215,24 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
         value={value}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         className="w-full font-mono"
         placeholder={placeholder}
-        onFocus={() => detectQueryContext(value, cursorPosition)}
+        autoComplete="off"
       />
       
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <div className="absolute top-0 left-0 h-0 w-0" />
-        </PopoverTrigger>
-        <PopoverContent
-          className="p-0 w-[300px] bg-white"
-          align="start"
-          side="bottom"
-          sideOffset={5}
-        >
-          <Command>
-            <CommandList className="max-h-[200px] overflow-y-auto">
-              <CommandEmpty>No suggestions found</CommandEmpty>
+      {open && suggestions.length > 0 && (
+        <div className="absolute left-0 right-0 z-50">
+          <Command className="rounded-lg border shadow-md bg-white overflow-hidden">
+            <CommandList className="max-h-[200px] overflow-y-auto py-2">
               <CommandGroup heading={suggestType === 'field' ? 'Fields' : suggestType === 'operator' ? 'Operators' : 'Values'}>
                 {suggestions.map((suggestion) => (
                   <CommandItem
                     key={suggestion.id}
                     value={suggestion.id}
                     onSelect={() => handleSelect(suggestion)}
+                    className="command-item cursor-pointer hover:bg-blue-50 px-3 py-2"
                   >
                     <span className="font-medium">{suggestion.name}</span>
                     {suggestion.description && (
@@ -217,8 +245,8 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
               </CommandGroup>
             </CommandList>
           </Command>
-        </PopoverContent>
-      </Popover>
+        </div>
+      )}
     </div>
   );
 };
