@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { JQLEditorAsync } from './MockJqlEditor';
 import JqlAutocompleteProvider from './JqlAutocompleteProvider';
@@ -128,6 +127,13 @@ const JqlEditorComponent: React.FC = () => {
         </div>
         
         <div className="mb-4">
+          <Alert className="bg-blue-50 border-blue-200 mb-3">
+            <AlertTitle className="text-blue-800">Autocomplete Available</AlertTitle>
+            <AlertDescription className="text-blue-700">
+              Try typing to get field suggestions. After selecting a field, you'll get operator suggestions, 
+              and after selecting an operator, you'll get value suggestions.
+            </AlertDescription>
+          </Alert>
           <label className="block text-sm font-medium mb-2">Current Query:</label>
           <pre className="p-3 bg-gray-100 border rounded-md text-sm whitespace-pre-wrap overflow-x-auto">
             {jqlQuery || '<empty>'}

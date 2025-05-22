@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import JqlAutocompleteComponent from './JqlAutocompleteComponent';
 
 interface JQLEditorAsyncProps {
   defaultValue?: string;
@@ -26,8 +27,7 @@ export const JQLEditorAsync: React.FC<JQLEditorAsyncProps> = ({
     }
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
+  const handleChange = (newValue: string) => {
     setValue(newValue);
     
     if (onChange) {
@@ -37,12 +37,11 @@ export const JQLEditorAsync: React.FC<JQLEditorAsyncProps> = ({
 
   return (
     <div className="jql-editor-mock">
-      <textarea
-        className="w-full h-24 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <JqlAutocompleteComponent
         value={value}
         onChange={handleChange}
         placeholder={placeholder}
-        aria-label="JQL Editor"
+        autocompleteProvider={autocompleteProvider}
       />
       <div className="mt-2 text-xs text-gray-500">
         <span>Mock JQLEditorAsync ({analyticsSource})</span>
