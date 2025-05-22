@@ -39,7 +39,7 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-
+  
   // Function to detect what part of the JQL query we're currently editing
   const detectQueryContext = (query: string, position: number) => {
     console.log('Detecting query context at position:', position);
@@ -138,6 +138,40 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
     
     onChange(newValue);
     setOpen(false);
+    
+    // Set timeout to focus back on the input and put cursor at end of selected suggestion
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const newCursorPos = beforeLastWord.length + selected.name.length + 1;
+        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 10);
+  };
+
+  // Handle key navigation and escape to close dropdown
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow regular typing to continue
+    if (e.key === 'Escape') {
+      setOpen(false);
+    }
+    
+    // Don't interfere with normal typing
+    e.stopPropagation();
+  };
+
+  // Handle input changes without interfering with dropdown
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    onChange(newValue);
+    
+    // Update cursor position
+    setTimeout(() => {
+      if (inputRef.current) {
+        setCursorPosition(inputRef.current.selectionStart || 0);
+        detectQueryContext(newValue, inputRef.current.selectionStart || 0);
+      }
+    }, 0);
   };
 
   return (
@@ -145,7 +179,8 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
       <Input
         ref={inputRef}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
         className="w-full font-mono"
         placeholder={placeholder}
         onFocus={() => detectQueryContext(value, cursorPosition)}
@@ -156,19 +191,13 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
           <div className="absolute top-0 left-0 h-0 w-0" />
         </PopoverTrigger>
         <PopoverContent
-          className="p-0 w-[300px]"
+          className="p-0 w-[300px] bg-white"
           align="start"
           side="bottom"
           sideOffset={5}
         >
           <Command>
-            <CommandInput placeholder="Search suggestions..." 
-              value={searchTerm}
-              onValueChange={(search) => {
-                setSearchTerm(search);
-              }}
-            />
-            <CommandList>
+            <CommandList className="max-h-[200px] overflow-y-auto">
               <CommandEmpty>No suggestions found</CommandEmpty>
               <CommandGroup heading={suggestType === 'field' ? 'Fields' : suggestType === 'operator' ? 'Operators' : 'Values'}>
                 {suggestions.map((suggestion) => (
