@@ -1,4 +1,3 @@
-
 /**
  * JQL Parser Service
  * 
@@ -6,12 +5,8 @@
  * using the @atlassianlabs/jql-parser library.
  */
 
-import {
-  JQLParser,
-  JQLLexer,
-  CommonTokenStream,
-  InputStream
-} from '@atlassianlabs/jql-parser';
+import { JQLParser, JQLLexer } from '@atlassianlabs/jql-parser';
+import { CharStreams, CommonTokenStream } from 'antlr4ts';
 
 class JqlParserService {
   /**
@@ -21,19 +16,19 @@ class JqlParserService {
     try {
       console.log('Parsing JQL:', jqlString);
       
-      // Create input stream from the JQL string
-      const inputStream = new InputStream(jqlString);
+      // Create input stream from the JQL string using antlr4ts
+      const inputStream = CharStreams.fromString(jqlString);
       
       // Create lexer from the input stream
       const lexer = new JQLLexer(inputStream);
       
-      // Create token stream from the lexer
+      // Create token stream from the lexer using antlr4ts
       const tokenStream = new CommonTokenStream(lexer);
       
       // Create parser from the token stream
       const parser = new JQLParser(tokenStream);
       
-      // Parse the JQL string - with no arguments since we've already set up the input stream
+      // Parse the JQL string
       const ast = parser.parse();
       
       console.log('Parsed JQL successfully');
