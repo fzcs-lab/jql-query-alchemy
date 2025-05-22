@@ -33,7 +33,7 @@ class JqlParserService {
       // Create parser from the token stream
       const parser = new JQLParser(tokenStream);
       
-      // Parse the JQL string - calling parse() without arguments
+      // Parse the JQL string - with no arguments since we've already set up the input stream
       const ast = parser.parse();
       
       console.log('Parsed JQL successfully');

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { JQLEditorAsync } from '@atlaskit/jql-editor';
+import { JQLEditorAsync } from './MockJqlEditor';
 import JqlAutocompleteProvider from './JqlAutocompleteProvider';
 import JqlParserService from './JqlParserService';
 import { Button } from '@/components/ui/button';

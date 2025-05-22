@@ -10,18 +10,10 @@ declare module '@atlaskit/jql-editor' {
   }>;
 }
 
-declare module '@atlaskit/jql-editor-common' {
-  export interface JqlEditorAutocompleteProvider {
-    getSuggestions(props: any): Promise<any>;
-    getFieldSuggestions(props: any): Promise<any>;
-    getFunctionSuggestions(props: any): Promise<any>;
-  }
-}
-
 declare module '@atlassianlabs/jql-parser' {
   export class JQLParser {
-    constructor();
-    parse(input: string): any;
+    constructor(input: any);
+    parse(): any;
   }
   
   export class JQLLexer {
