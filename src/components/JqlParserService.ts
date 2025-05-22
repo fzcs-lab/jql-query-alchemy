@@ -1,3 +1,4 @@
+
 /**
  * JQL Parser Service
  * 
@@ -20,13 +21,15 @@ class JqlParserService {
       const inputStream = CharStreams.fromString(jqlString);
       
       // Create lexer from the input stream
-      const lexer = new JQLLexer(inputStream);
+      // Need to cast the lexer to any because of type incompatibility between the libraries
+      const lexer = new JQLLexer(inputStream as any);
       
-      // Create token stream from the lexer using antlr4ts
-      const tokenStream = new CommonTokenStream(lexer);
+      // Create token stream from the lexer
+      // Use any to bypass type checking since we're mixing two different ANTLR versions
+      const tokenStream = new CommonTokenStream(lexer as any);
       
       // Create parser from the token stream
-      const parser = new JQLParser(tokenStream);
+      const parser = new JQLParser(tokenStream as any);
       
       // Parse the JQL string
       const ast = parser.parse();

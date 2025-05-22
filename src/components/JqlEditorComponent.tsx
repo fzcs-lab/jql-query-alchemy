@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { JQLEditorAsync } from './MockJqlEditor';
 import JqlAutocompleteProvider from './JqlAutocompleteProvider';
 import JqlParserService from './JqlParserService';
+import MockJqlParserService from './MockJqlParserService';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -17,9 +18,25 @@ const JqlEditorComponent: React.FC = () => {
     success: boolean;
     message: string;
   } | null>(null);
+  const [useMockParser, setUseMockParser] = useState<boolean>(false);
 
   const autocompleteProvider = new JqlAutocompleteProvider();
   const parserService = new JqlParserService();
+  const mockParserService = new MockJqlParserService();
+
+  // Check if the antlr parser works
+  useEffect(() => {
+    try {
+      const result = parserService.parseJql("project = TEST");
+      if (!result.success) {
+        console.warn("Falling back to mock parser due to initialization error");
+        setUseMockParser(true);
+      }
+    } catch (error) {
+      console.error("Error initializing parser:", error);
+      setUseMockParser(true);
+    }
+  }, []);
 
   // Handle JQL change
   const handleJqlChange = (query: string) => {
@@ -37,21 +54,57 @@ const JqlEditorComponent: React.FC = () => {
       return;
     }
 
-    const result = parserService.parseJql(jqlQuery);
-    
-    if (result.success && result.ast) {
-      console.log('Full AST:', result.ast);
-      const simplified = parserService.simplifyAstForDisplay(result.ast);
-      setParsedAst(simplified);
-      setParseResult({
-        success: true,
-        message: 'JQL parsed successfully! Check the console for the full AST.',
-      });
-    } else {
+    try {
+      // Use the appropriate parser based on availability
+      const result = useMockParser 
+        ? mockParserService.parseJql(jqlQuery)
+        : parserService.parseJql(jqlQuery);
+      
+      if (result.success && result.ast) {
+        console.log('Full AST:', result.ast);
+        const simplified = useMockParser
+          ? mockParserService.simplifyAstForDisplay(result.ast)
+          : parserService.simplifyAstForDisplay(result.ast);
+        setParsedAst(simplified);
+        setParseResult({
+          success: true,
+          message: `JQL parsed successfully! ${useMockParser ? '(Using mock parser)' : ''} Check the console for the full AST.`,
+        });
+      } else {
+        setParsedAst(null);
+        setParseResult({
+          success: false,
+          message: `Error parsing JQL: ${result.error || 'Unknown error'}`,
+        });
+      }
+    } catch (error) {
+      console.error("Error during parsing:", error);
+      
+      // If the real parser failed, try the mock parser
+      if (!useMockParser) {
+        try {
+          console.log("Falling back to mock parser");
+          setUseMockParser(true);
+          const mockResult = mockParserService.parseJql(jqlQuery);
+          
+          if (mockResult.success && mockResult.ast) {
+            const simplified = mockParserService.simplifyAstForDisplay(mockResult.ast);
+            setParsedAst(simplified);
+            setParseResult({
+              success: true,
+              message: 'JQL parsed with mock parser (fallback). Check the console for details.',
+            });
+            return;
+          }
+        } catch (mockError) {
+          console.error("Mock parser also failed:", mockError);
+        }
+      }
+      
       setParsedAst(null);
       setParseResult({
         success: false,
-        message: `Error parsing JQL: ${result.error || 'Unknown error'}`,
+        message: `Error parsing JQL: ${error instanceof Error ? error.message : String(error)}`,
       });
     }
   };
@@ -81,7 +134,7 @@ const JqlEditorComponent: React.FC = () => {
           </pre>
         </div>
         
-        <div>
+        <div className="flex justify-between items-center">
           <Button 
             onClick={handleParseJql}
             className="flex items-center"
@@ -89,6 +142,12 @@ const JqlEditorComponent: React.FC = () => {
             Parse Current JQL
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
+          
+          {useMockParser && (
+            <span className="text-xs text-amber-600">
+              Using mock parser (ANTLR parser unavailable in browser)
+            </span>
+          )}
         </div>
       </Card>
       
@@ -107,14 +166,18 @@ const JqlEditorComponent: React.FC = () => {
       {/* Parsed AST */}
       {parsedAst && (
         <Card className="p-6 shadow-md">
-          <h2 className="text-xl font-semibold mb-4">Simplified AST</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            {useMockParser ? 'Simplified Mock AST' : 'Simplified AST'}
+          </h2>
           <div className="overflow-auto">
             <pre className="p-3 bg-gray-100 border rounded-md text-sm max-h-80">
               {parsedAst}
             </pre>
           </div>
           <p className="mt-2 text-sm text-gray-500">
-            Note: This is a simplified view. Full AST is available in the browser console.
+            Note: {useMockParser 
+              ? 'This is using a simple mock parser as ANTLR is not fully compatible with browser environments.' 
+              : 'This is a simplified view. Full AST is available in the browser console.'}
           </p>
         </Card>
       )}
