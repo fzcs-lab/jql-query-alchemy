@@ -9,8 +9,15 @@
 // Fields that should use the API instead of static values
 export const API_BACKED_FIELDS = ['status', 'priority'];
 
+// Type definition for field values
+export interface FieldValue {
+  id: string;
+  displayName: string;
+  description: string;
+}
+
 // Simulated backend data for API responses
-const API_VALUES = {
+const API_VALUES: Record<string, FieldValue[]> = {
   status: [
     { id: 'Open', displayName: 'Open', description: 'Issue is open' },
     { id: 'In Progress', displayName: '"In Progress"', description: 'Issue is being worked on' },
@@ -35,7 +42,7 @@ export class JqlMockApiService {
    * @param searchQuery Optional search query to filter values
    * @returns Promise that resolves to an array of field values
    */
-  async getFieldValues(fieldName: string, searchQuery: string = '') {
+  async getFieldValues(fieldName: string, searchQuery: string = ''): Promise<FieldValue[]> {
     // Check if this field has API-backed values
     if (!API_BACKED_FIELDS.includes(fieldName)) {
       return Promise.reject(new Error(`Field ${fieldName} is not API-backed`));

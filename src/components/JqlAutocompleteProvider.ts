@@ -6,10 +6,37 @@
  * by providing hardcoded suggestions for fields, functions, and values.
  * It also integrates with a mock API service for specific field values.
  */
-import JqlMockApiService, { API_BACKED_FIELDS } from '../services/JqlMockApiService';
+import JqlMockApiService, { API_BACKED_FIELDS, FieldValue } from '../services/JqlMockApiService';
+
+// Type definitions
+interface Field {
+  id: string;
+  displayName: string;
+  type: string;
+  hasAutocompleteValues: boolean;
+}
+
+interface Function {
+  id: string;
+  displayName: string;
+  description: string;
+}
+
+interface Suggestion {
+  id: string;
+  name: string;
+  description?: string;
+  type?: string;
+}
+
+interface SuggestionProps {
+  type: 'field' | 'function' | 'operator' | 'value';
+  fieldName?: string;
+  query?: string;
+}
 
 // Mock field suggestions
-const FIELDS = [
+const FIELDS: Field[] = [
   { id: 'project', displayName: 'Project', type: 'project', hasAutocompleteValues: true },
   { id: 'status', displayName: 'Status', type: 'status', hasAutocompleteValues: true },
   { id: 'assignee', displayName: 'Assignee', type: 'user', hasAutocompleteValues: true },
@@ -21,7 +48,7 @@ const FIELDS = [
 ];
 
 // Mock function suggestions
-const FUNCTIONS = [
+const FUNCTIONS: Function[] = [
   { id: 'currentUser', displayName: 'currentUser()', description: 'Returns the current user' },
   { id: 'now', displayName: 'now()', description: 'Returns the current date and time' },
   { id: 'membersOf', displayName: 'membersOf("group")', description: 'Returns members of the specified group' },
@@ -31,7 +58,7 @@ const FUNCTIONS = [
 ];
 
 // Mock value suggestions based on field type
-const FIELD_VALUES = {
+const FIELD_VALUES: Record<string, FieldValue[]> = {
   project: [
     { id: 'PROJECTA', displayName: 'PROJECTA', description: 'Project A' },
     { id: 'PROJECTB', displayName: 'PROJECTB', description: 'Project B' },
@@ -46,7 +73,7 @@ const FIELD_VALUES = {
 };
 
 // Operators based on field type
-const OPERATORS_BY_TYPE = {
+const OPERATORS_BY_TYPE: Record<string, string[]> = {
   text: ['=', '!=', '~', '!~', 'IS', 'IS NOT', 'IN', 'NOT IN', 'CONTAINS'],
   date: ['=', '!=', '>', '>=', '<', '<=', 'IS', 'IS NOT', 'IN', 'NOT IN'],
   user: ['=', '!=', 'IS', 'IS NOT', 'IN', 'NOT IN', 'WAS', 'WAS NOT', 'CHANGED'],
@@ -59,7 +86,7 @@ class JqlAutocompleteProvider {
   /**
    * Get suggestions based on the type of query context
    */
-  async getSuggestions(props: any): Promise<any> {
+  async getSuggestions(props: SuggestionProps): Promise<Suggestion[]> {
     console.log('getSuggestions called with props:', props);
     
     const { type, fieldName } = props;
@@ -82,7 +109,7 @@ class JqlAutocompleteProvider {
   /**
    * Get field suggestions
    */
-  async getFieldSuggestions(props: any): Promise<any> {
+  async getFieldSuggestions(props: SuggestionProps): Promise<Suggestion[]> {
     console.log('getFieldSuggestions called:', props);
     
     return FIELDS.map(field => ({
@@ -95,7 +122,7 @@ class JqlAutocompleteProvider {
   /**
    * Get function suggestions
    */
-  async getFunctionSuggestions(props: any): Promise<any> {
+  async getFunctionSuggestions(props: SuggestionProps): Promise<Suggestion[]> {
     console.log('getFunctionSuggestions called:', props);
     
     return FUNCTIONS.map(func => ({
@@ -108,7 +135,7 @@ class JqlAutocompleteProvider {
   /**
    * Get operator suggestions based on field type
    */
-  async getOperatorSuggestions(props: any): Promise<any> {
+  async getOperatorSuggestions(props: SuggestionProps): Promise<Suggestion[]> {
     console.log('getOperatorSuggestions called:', props);
     
     const { fieldName } = props;
@@ -121,7 +148,7 @@ class JqlAutocompleteProvider {
       }));
     }
     
-    const operators = OPERATORS_BY_TYPE[field.type as keyof typeof OPERATORS_BY_TYPE] || OPERATORS_BY_TYPE.text;
+    const operators = OPERATORS_BY_TYPE[field.type] || OPERATORS_BY_TYPE.text;
     
     return operators.map(op => ({
       id: op,
@@ -132,10 +159,15 @@ class JqlAutocompleteProvider {
   /**
    * Get value suggestions based on field
    */
-  async getValueSuggestions(props: any): Promise<any> {
+  async getValueSuggestions(props: SuggestionProps): Promise<Suggestion[]> {
     console.log('getValueSuggestions called:', props);
     
     const { fieldName, query = '' } = props;
+    
+    if (!fieldName) {
+      return [];
+    }
+    
     const field = FIELDS.find(f => f.id === fieldName);
     
     if (!field || !field.hasAutocompleteValues) {
@@ -147,7 +179,7 @@ class JqlAutocompleteProvider {
       try {
         // Get values from the API service
         const apiValues = await JqlMockApiService.getFieldValues(fieldName, query);
-        return apiValues.map((value: any) => ({
+        return apiValues.map((value: FieldValue) => ({
           id: value.id,
           name: value.displayName,
           description: value.description,
@@ -171,7 +203,7 @@ class JqlAutocompleteProvider {
     }
     
     // Return specific field values if available
-    const values = FIELD_VALUES[fieldName as keyof typeof FIELD_VALUES] || [];
+    const values = FIELD_VALUES[fieldName] || [];
     return values.map(value => ({
       id: value.id,
       name: value.displayName,
