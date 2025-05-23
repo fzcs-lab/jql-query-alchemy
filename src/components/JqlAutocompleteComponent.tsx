@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Command,
@@ -49,6 +48,15 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
     
     // Get the substring up to the cursor position
     const textUntilCursor = query.substring(0, position);
+    
+    // Handle empty query case
+    if (!textUntilCursor.trim()) {
+      setSuggestType('field');
+      setSearchTerm('');
+      setCurrentFieldName(null);
+      return 'field';
+    }
+    
     const wordsUntilCursor = textUntilCursor.trim().split(/\s+/);
     const lastWord = wordsUntilCursor[wordsUntilCursor.length - 1];
     
@@ -58,26 +66,68 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
     // Improved detection logic for field/operator/value pattern
     let fieldIndex = -1;
     let operatorIndex = -1;
+    let lastFieldOperatorPair = { field: -1, operator: -1 };
     
-    // Look for field and operator pattern
+    // Look for field and operator patterns - find the last occurrence
     for (let i = 0; i < wordsUntilCursor.length - 1; i++) {
-      // Check if this might be a field followed by an operator
       const potentialField = wordsUntilCursor[i];
       const potentialOperator = wordsUntilCursor[i + 1];
       
       if (potentialOperator && ['=', '!=', '>', '>=', '<', '<=', '~', '!~', 'IN', 'NOT', 'IS', 'CONTAINS', 'WAS'].includes(potentialOperator.toUpperCase())) {
-        fieldIndex = i;
-        operatorIndex = i + 1;
+        lastFieldOperatorPair = { field: i, operator: i + 1 };
       }
+    }
+    
+    fieldIndex = lastFieldOperatorPair.field;
+    operatorIndex = lastFieldOperatorPair.operator;
+    
+    // Special handling for ORDER BY clause
+    const orderByIndex = wordsUntilCursor.findIndex(word => 
+      word.toUpperCase() === 'ORDER' && wordsUntilCursor[word + 1]?.toUpperCase() === 'BY'
+    );
+    
+    if (orderByIndex >= 0 && orderByIndex === wordsUntilCursor.length - 2) {
+      // After "ORDER BY", suggest fields for sorting
+      setSuggestType('field');
+      setSearchTerm(lastWord);
+      setCurrentFieldName(null);
+      return 'field';
+    }
+    
+    // Special handling for logical operators (AND, OR)
+    if (['AND', 'OR'].includes(wordsUntilCursor[wordsUntilCursor.length - 1].toUpperCase())) {
+      // After logical operator, suggest fields
+      setSuggestType('field');
+      setSearchTerm(lastWord);
+      setCurrentFieldName(null);
+      return 'field';
     }
     
     // If we found a field-operator pair
     if (fieldIndex >= 0 && operatorIndex >= 0) {
       const currentField = wordsUntilCursor[fieldIndex];
       
-      // If cursor is right after the operator or in a word after the operator, suggest values
-      if (operatorIndex < wordsUntilCursor.length - 1 || 
-          (operatorIndex === wordsUntilCursor.length - 1 && query.charAt(position - 1) === ' ')) {
+      // Check if cursor is right after the operator (suggesting values)
+      if (operatorIndex === wordsUntilCursor.length - 1) {
+        // If there's a space after the operator, suggest values
+        if (query.charAt(position - 1) === ' ') {
+          console.log('Suggesting values for field:', currentField);
+          setSuggestType('value');
+          setSearchTerm('');
+          setCurrentFieldName(currentField);
+          return 'value';
+        }
+        
+        // Otherwise, we're still editing the operator
+        setSuggestType('operator');
+        setSearchTerm(wordsUntilCursor[operatorIndex]);
+        setCurrentFieldName(currentField);
+        return 'operator';
+      }
+      
+      // If cursor is after the operator in a later position
+      if (operatorIndex < wordsUntilCursor.length - 1) {
+        // We're suggesting a value for the field
         console.log('Suggesting values for field:', currentField);
         setSuggestType('value');
         setSearchTerm(lastWord);
@@ -86,24 +136,30 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
       }
     }
     
-    // Simple detection logic (can be improved for more complex JQL)
-    if (wordsUntilCursor.length % 3 === 1) {
+    // Simple fallback detection logic
+    // Check the pattern of words to determine context
+    const wordCount = wordsUntilCursor.length;
+    
+    // If last character is a space, we're starting a new term
+    const isStartingNewTerm = query.charAt(position - 1) === ' ';
+    
+    if (wordCount % 3 === 1 || (wordCount % 3 === 0 && isStartingNewTerm)) {
       // First part of triplet - should be a field
       setSuggestType('field');
       setSearchTerm(lastWord);
       setCurrentFieldName(null);
       return 'field';
-    } else if (wordsUntilCursor.length % 3 === 2) {
+    } else if (wordCount % 3 === 2 || (wordCount % 3 === 1 && isStartingNewTerm)) {
       // Second part of triplet - should be an operator
       setSuggestType('operator');
       setSearchTerm(lastWord);
-      setCurrentFieldName(wordsUntilCursor[wordsUntilCursor.length - 2]);
+      setCurrentFieldName(wordsUntilCursor[wordCount - 2]);
       return 'operator';
     } else {
       // Third part of triplet - should be a value
       setSuggestType('value');
       setSearchTerm(lastWord);
-      setCurrentFieldName(wordsUntilCursor[wordsUntilCursor.length - 3]);
+      setCurrentFieldName(wordsUntilCursor[wordCount - 3]);
       return 'value';
     }
   };
@@ -309,4 +365,3 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
 };
 
 export default JqlAutocompleteComponent;
-
