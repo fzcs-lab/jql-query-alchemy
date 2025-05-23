@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Command,
@@ -7,7 +8,10 @@ import {
   CommandList
 } from "@/components/ui/command";
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { LoaderCircle } from 'lucide-react';
 import JqlAutocompleteProvider from './JqlAutocompleteProvider';
+import { API_BACKED_FIELDS } from '../services/JqlMockApiService';
 
 interface JqlAutocompleteComponentProps {
   value: string;
@@ -39,6 +43,7 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
   const [isSelecting, setIsSelecting] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const commandRef = useRef<HTMLDivElement>(null);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Function to detect what part of the JQL query we're currently editing
   const detectQueryContext = (query: string, position: number) => {
@@ -170,6 +175,17 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
     
     try {
       console.log('Loading suggestions for type:', suggestType, 'field:', currentFieldName);
+      
+      // Check if we're loading values for an API-backed field
+      const isApiField = suggestType === 'value' && 
+                         currentFieldName && 
+                         API_BACKED_FIELDS.includes(currentFieldName);
+      
+      // Show loading indicator for API fields
+      if (isApiField) {
+        setIsLoading(true);
+      }
+      
       const props = {
         type: suggestType,
         fieldName: currentFieldName,
@@ -185,8 +201,13 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
       } else if (results.length === 0) {
         setOpen(false);
       }
+      
+      if (isApiField) {
+        setIsLoading(false);
+      }
     } catch (error) {
       console.error('Error loading suggestions:', error);
+      setIsLoading(false);
     }
   };
 
@@ -335,26 +356,40 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
         autoComplete="off"
       />
       
-      {open && suggestions.length > 0 && (
+      {open && (isLoading || suggestions.length > 0) && (
         <div className="absolute left-0 right-0 z-50">
           <Command ref={commandRef} className="rounded-lg border shadow-md bg-white overflow-hidden">
             <CommandList className="max-h-[200px] overflow-y-auto py-2">
               <CommandGroup heading={suggestType === 'field' ? 'Fields' : suggestType === 'operator' ? 'Operators' : 'Values'}>
-                {suggestions.map((suggestion, index) => (
-                  <CommandItem
-                    key={suggestion.id}
-                    value={suggestion.id}
-                    onSelect={() => handleSelect(suggestion)}
-                    className={`command-item cursor-pointer px-3 py-2 ${index === activeIndex ? 'bg-blue-50 text-blue-700' : 'hover:bg-blue-50'}`}
-                  >
-                    <span className="font-medium">{suggestion.name}</span>
-                    {suggestion.description && (
-                      <span className="text-xs text-muted-foreground ml-2">
-                        {suggestion.description}
-                      </span>
-                    )}
-                  </CommandItem>
-                ))}
+                {isLoading ? (
+                  <div className="p-2">
+                    <div className="flex items-center justify-center space-x-2">
+                      <LoaderCircle className="h-4 w-4 animate-spin text-blue-500" />
+                      <span className="text-sm text-muted-foreground">Loading values...</span>
+                    </div>
+                    <div className="space-y-2 mt-2">
+                      <Skeleton className="h-6 w-full" />
+                      <Skeleton className="h-6 w-full" />
+                      <Skeleton className="h-6 w-full" />
+                    </div>
+                  </div>
+                ) : (
+                  suggestions.map((suggestion, index) => (
+                    <CommandItem
+                      key={suggestion.id}
+                      value={suggestion.id}
+                      onSelect={() => handleSelect(suggestion)}
+                      className={`command-item cursor-pointer px-3 py-2 ${index === activeIndex ? 'bg-blue-50 text-blue-700' : 'hover:bg-blue-50'}`}
+                    >
+                      <span className="font-medium">{suggestion.name}</span>
+                      {suggestion.description && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          {suggestion.description}
+                        </span>
+                      )}
+                    </CommandItem>
+                  ))
+                )}
               </CommandGroup>
             </CommandList>
           </Command>

@@ -4,7 +4,9 @@
  * 
  * This provider mocks the behavior of a real JQL autocomplete service
  * by providing hardcoded suggestions for fields, functions, and values.
+ * It also integrates with a mock API service for specific field values.
  */
+import JqlMockApiService, { API_BACKED_FIELDS } from '../services/JqlMockApiService';
 
 // Mock field suggestions
 const FIELDS = [
@@ -34,19 +36,6 @@ const FIELD_VALUES = {
     { id: 'PROJECTA', displayName: 'PROJECTA', description: 'Project A' },
     { id: 'PROJECTB', displayName: 'PROJECTB', description: 'Project B' },
     { id: 'PROJECT C WITH SPACES', displayName: '"PROJECT C WITH SPACES"', description: 'Project with spaces' },
-  ],
-  status: [
-    { id: 'Open', displayName: 'Open', description: 'Issue is open' },
-    { id: 'In Progress', displayName: '"In Progress"', description: 'Issue is being worked on' },
-    { id: 'Closed', displayName: 'Closed', description: 'Issue is closed' },
-    { id: 'Done', displayName: 'Done', description: 'Issue is completed' },
-  ],
-  priority: [
-    { id: 'Highest', displayName: 'Highest', description: 'Highest priority' },
-    { id: 'High', displayName: 'High', description: 'High priority' },
-    { id: 'Medium', displayName: 'Medium', description: 'Medium priority' },
-    { id: 'Low', displayName: 'Low', description: 'Low priority' },
-    { id: 'Lowest', displayName: 'Lowest', description: 'Lowest priority' },
   ],
   user: [
     { id: 'currentUser()', displayName: 'currentUser()', description: 'Current user' },
@@ -146,13 +135,30 @@ class JqlAutocompleteProvider {
   async getValueSuggestions(props: any): Promise<any> {
     console.log('getValueSuggestions called:', props);
     
-    const { fieldName } = props;
+    const { fieldName, query = '' } = props;
     const field = FIELDS.find(f => f.id === fieldName);
     
     if (!field || !field.hasAutocompleteValues) {
       return [];
     }
     
+    // Check if the field is API-backed
+    if (API_BACKED_FIELDS.includes(fieldName)) {
+      try {
+        // Get values from the API service
+        const apiValues = await JqlMockApiService.getFieldValues(fieldName, query);
+        return apiValues.map((value: any) => ({
+          id: value.id,
+          name: value.displayName,
+          description: value.description,
+        }));
+      } catch (error) {
+        console.error('Error fetching API values:', error);
+        return [];
+      }
+    }
+    
+    // Use static values for non-API fields
     let fieldType = field.type;
     
     // Map user fields to generic user suggestions
@@ -171,6 +177,13 @@ class JqlAutocompleteProvider {
       name: value.displayName,
       description: value.description,
     }));
+  }
+  
+  /**
+   * Check if a field is API-backed
+   */
+  isFieldApiBackend(fieldName: string): boolean {
+    return API_BACKED_FIELDS.includes(fieldName);
   }
 }
 
