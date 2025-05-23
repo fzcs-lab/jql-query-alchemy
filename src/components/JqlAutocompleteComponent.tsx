@@ -52,6 +52,40 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
     const wordsUntilCursor = textUntilCursor.trim().split(/\s+/);
     const lastWord = wordsUntilCursor[wordsUntilCursor.length - 1];
     
+    console.log('Words until cursor:', wordsUntilCursor);
+    console.log('Last word:', lastWord);
+    
+    // Improved detection logic for field/operator/value pattern
+    let fieldIndex = -1;
+    let operatorIndex = -1;
+    
+    // Look for field and operator pattern
+    for (let i = 0; i < wordsUntilCursor.length - 1; i++) {
+      // Check if this might be a field followed by an operator
+      const potentialField = wordsUntilCursor[i];
+      const potentialOperator = wordsUntilCursor[i + 1];
+      
+      if (potentialOperator && ['=', '!=', '>', '>=', '<', '<=', '~', '!~', 'IN', 'NOT', 'IS', 'CONTAINS', 'WAS'].includes(potentialOperator.toUpperCase())) {
+        fieldIndex = i;
+        operatorIndex = i + 1;
+      }
+    }
+    
+    // If we found a field-operator pair
+    if (fieldIndex >= 0 && operatorIndex >= 0) {
+      const currentField = wordsUntilCursor[fieldIndex];
+      
+      // If cursor is right after the operator or in a word after the operator, suggest values
+      if (operatorIndex < wordsUntilCursor.length - 1 || 
+          (operatorIndex === wordsUntilCursor.length - 1 && query.charAt(position - 1) === ' ')) {
+        console.log('Suggesting values for field:', currentField);
+        setSuggestType('value');
+        setSearchTerm(lastWord);
+        setCurrentFieldName(currentField);
+        return 'value';
+      }
+    }
+    
     // Simple detection logic (can be improved for more complex JQL)
     if (wordsUntilCursor.length % 3 === 1) {
       // First part of triplet - should be a field
@@ -92,6 +126,8 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
       if (results.length > 0 && !isSelecting) {
         setOpen(true);
         setActiveIndex(0); // Reset active index when new suggestions load
+      } else if (results.length === 0) {
+        setOpen(false);
       }
     } catch (error) {
       console.error('Error loading suggestions:', error);
@@ -156,6 +192,9 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
         if (inputRef.current) {
           inputRef.current.focus();
           inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+          
+          // Trigger context detection after insertion to show next suggestions
+          detectQueryContext(newValue, newCursorPos);
         }
         // Allow detection again after selection is complete
         setIsSelecting(false);
@@ -270,3 +309,4 @@ const JqlAutocompleteComponent: React.FC<JqlAutocompleteComponentProps> = ({
 };
 
 export default JqlAutocompleteComponent;
+
